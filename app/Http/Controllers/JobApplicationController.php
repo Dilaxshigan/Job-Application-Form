@@ -8,6 +8,7 @@ use Google\Client;
 use Google\Service\Sheets;
 use Google\Service\Sheets\ValueRange;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\IOFactory;
 use Smalot\PdfParser\Parser;
@@ -20,7 +21,6 @@ class JobApplicationController extends Controller
     }
     public function submitForm(Request $request)
     {
-        // Validate the form data
         $request->validate([
             'name' => 'required|string|min:3',
             'email' => 'required|email|unique:applicants',
@@ -35,7 +35,6 @@ class JobApplicationController extends Controller
         $data->phone = $request->phone;
 
         if ($request->hasFile("cv")) {
-
             $cvFileName = time() . '_' . $request->file("cv")->getClientOriginalName();
 
             $cvPath = $request->file("cv")->storeAs(
@@ -51,7 +50,7 @@ class JobApplicationController extends Controller
 
             $data->cv_url = $cvPublicUrl;
 
-            $cvText = $this->parseCv($request->file("cv"));
+            $cvText = $this->parseCv($request->file("cv"));  
             $sections = $this->extractSections($cvText);
 
             $data->education = $sections['education'];
@@ -69,6 +68,7 @@ class JobApplicationController extends Controller
                 'projects' => $sections['projects'],
                 'personal_info' => $sections['personal_info'],
             ]);
+
         }
 
         $data->save();
@@ -111,27 +111,29 @@ class JobApplicationController extends Controller
             'projects' => '',
             'personal_info' => '',
         ];
-
-        // Extract Education (customize based on your CV format)
-        if (preg_match('/Education:(.*?)(Qualifications:|Projects:|$)/s', $text, $matches)) {
+    
+        $text = preg_replace('/\s+/', ' ', $text); // Remove extra spaces
+    
+        // Extract Education
+        if (preg_match('/education\s*[:\-]?\s*(.*?)\s*(relevant experience|additional experience|project experience|skills|honors and awards|$)/i', $text, $matches)) {
             $sections['education'] = trim($matches[1]);
         }
-
-        // Extract Qualifications
-        if (preg_match('/Qualifications:(.*?)(Education:|Projects:|$)/s', $text, $matches)) {
+    
+        // Extract Qualifications (if mentioned)
+        if (preg_match('/qualifications\s*[:\-]?\s*(.*?)\s*(education|project experience|skills|honors and awards|$)/i', $text, $matches)) {
             $sections['qualifications'] = trim($matches[1]);
         }
-
+    
         // Extract Projects
-        if (preg_match('/Projects:(.*?)(Education:|Qualifications:|$)/s', $text, $matches)) {
-            $sections['projects'] = trim($matches[1]);
+        if (preg_match('/(project experience|projects)\s*[:\-]?\s*(.*?)\s*(education|qualifications|skills|honors and awards|$)/i', $text, $matches)) {
+            $sections['projects'] = trim($matches[2]);
         }
-
-        // Extract Personal Info (Name, Contact Details)
-        if (preg_match('/(Name|Contact):(.*?)(Education:|Qualifications:|Projects:|$)/s', $text, $matches)) {
-            $sections['personal_info'] = trim($matches[2]);
+    
+        // Extract Personal Info (from the top part of the resume)
+        if (preg_match('/^(.*?)education/i', $text, $matches)) {
+            $sections['personal_info'] = trim($matches[1]);
         }
-
+    
         return $sections;
     }
     private function appendToGoogleSheet($data)
@@ -141,7 +143,7 @@ class JobApplicationController extends Controller
         $client->addScope(Sheets::SPREADSHEETS);
         $service = new Sheets($client);
     
-        $spreadsheetId = '1A90CV2deupitiLZ7cUUU5CMuzmOwBAgZrc48g4Chlik'; 
+        $spreadsheetId = '14sLBX2T1PcPoHdX2HayV1H5CSAApFUg_O8PfxzHXknM'; 
         $range = 'Sheet1'; 
     
         $values = [
