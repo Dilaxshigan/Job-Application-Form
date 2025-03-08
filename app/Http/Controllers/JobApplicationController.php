@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\IOFactory;
 use Smalot\PdfParser\Parser;
+use App\Mail\FollowUpMail;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
 
 class JobApplicationController extends Controller
 {
@@ -69,6 +72,8 @@ class JobApplicationController extends Controller
                 'personal_info' => $sections['personal_info'],
             ]);
 
+            $followUpTime = Carbon::parse($data->created_at)->addDay()->setTime(9, 0);
+            Mail::to($request->email)->later($followUpTime, new FollowUpMail($request->name));
         }
 
         $data->save();
